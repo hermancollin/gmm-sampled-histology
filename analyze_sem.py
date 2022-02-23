@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 COLUMNS = ['mean_ax', 'std_ax', 'mean_my', 'std_my', 'mean_bg', 'std_bg']
 
@@ -33,9 +34,14 @@ def analyze_image(img, axon_mask, myelin_mask, saving=False):
     and returns mean and standard deviation values for all classes.
     '''
     bg_mask = 255 - (axon_mask + myelin_mask)
-    nb_axon_px = (axon_mask == 255).sum()
-    nb_myelin_px = (myelin_mask == 255).sum()
-    nb_bg_px = (bg_mask == 255).sum()
+    # binarization
+    axon_mask = axon_mask > 128
+    myelin_mask = myelin_mask > 128
+    bg_mask = bg_mask > 128
+
+    nb_axon_px = (axon_mask == True).sum()
+    nb_myelin_px = (myelin_mask == True).sum()
+    nb_bg_px = (bg_mask == True).sum()
     total_size = nb_axon_px + nb_myelin_px + nb_bg_px
 
     # filter input image with masks
@@ -60,10 +66,8 @@ def analyze_image(img, axon_mask, myelin_mask, saving=False):
         stats = get_stats_from_histogram(hist)
         measures.append(stats[0])
         measures.append(stats[1])
-    print(measures)
     measures = pd.DataFrame([measures], columns=COLUMNS)
-    print(measures)
-
+    #print(measures)
 
     if saving:
         plt.figure(1)
@@ -81,41 +85,51 @@ def analyze_image(img, axon_mask, myelin_mask, saving=False):
         plt.title('Histogram for background')
         plt.savefig("hist_bg")    
         print("Background histogram saved.")
+        #ads_utils.imwrite('axon_only.png', axon_only)
+        #ads_utils.imwrite('myelin_only.png', myelin_only)
+        #ads_utils.imwrite('bg_only.png', bg_only)
+    return measures
 
-# locating data and listing participants
+
+# locating data and listing samples
 dataset_path = Path("/home/herman/Documents/NEUROPOLY_21/datasets/data_axondeepseg_sem")
-participants_path = dataset_path / 'participants.tsv'
-with open(participants_path) as tsv_file:
-    subj_list = pd.read_csv(participants_path, delimiter='\t')
-subj_list = subj_list["participant_id"]
-print(subj_list)
+samples_path = dataset_path / 'samples.tsv'
+samples = pd.read_csv(samples_path, delimiter='\t')
+samples_dict = {}
+for i, row in samples.iterrows():
+    subject = row['participant_id']
+    sample = row['sample_id']
+    if sample not in samples_dict:
+        samples_dict[sample] = {}
+    samples_dict[sample]['subject'] = subject
 
 # loading data
-#for subject in subj_list:
-#    data_path = dataset_path / subject / "micr"
-#    mask_path = dataset_path / "derivatives" / "labels" / subject / "micr"
-#    files = data_path.glob('*.png')
-#    for f in files:
-#        print(f)
-#    masks = mask_path.glob('*axonmyelin*')
-#    for m in masks:
-#        print(m)
+for sample in samples_dict.keys():
+    subject = samples_dict[sample]['subject']
+    data_path = dataset_path / subject / "micr"
+    mask_path = dataset_path / "derivatives" / "labels" / subject / "micr"
+    files = data_path.glob('*.png')
+    for f in files:
+        if sample in str(f):
+            samples_dict[sample]['image'] = str(f)
+    mask_files = list(mask_path.glob('*-axon-*')) + list(mask_path.glob('*-myelin-*'))
+    for m in mask_files:
+        if sample in str(m):
+            if 'seg-axon' in str(m):
+                samples_dict[sample]['axon_mask'] = str(m)
+            elif 'seg-myelin' in str(m):
+                samples_dict[sample]['myelin_mask'] = str(m)
+print(f'Found {len(samples_dict.keys())} samples:')
+print(json.dumps(samples_dict, indent=4))
 
-first_subj = dataset_path / subj_list[0] / "micr"
-files = first_subj.glob('*png')
-for file in files:
-    print(file)
-    img = ads_utils.imread(file)
-    print("Image dimensions: ", img.shape)
-    print("mean value= ", np.mean(img))
-    print("std value= ", np.std(img))
-
-    maskpath = dataset_path / "derivatives" / "labels" / subj_list[0] / "micr"
-    masks = maskpath.glob('*.png')
-    for m in masks:
-        if "axon-manual" in str(m):
-            axon = ads_utils.imread(m)
-        elif "myelin-manual" in str(m):
-            myelin = ads_utils.imread(m)
-
-    analyze_image(img, axon, myelin)
+# extracting mean and std from all samples
+priors = pd.DataFrame(columns=COLUMNS)
+for sample in samples_dict.keys():
+    image = ads_utils.imread(samples_dict[sample]['image'])
+    axon_mask = ads_utils.imread(samples_dict[sample]['axon_mask'])
+    myelin_mask = ads_utils.imread(samples_dict[sample]['myelin_mask'])
+    
+    row = analyze_image(image, axon_mask, myelin_mask)
+    row.index = [sample]
+    priors = priors.append(row)
+priors.to_csv('priors.csv')
