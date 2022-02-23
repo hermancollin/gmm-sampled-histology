@@ -2,7 +2,6 @@
 This script analyzes the SEM dataset and collects information on pixel intensity 
 class-wise. It outputs aggregated mean and standard deviation values for every class
 (background, axon and myelin) 
-
 """
 
 from AxonDeepSeg import ads_utils
