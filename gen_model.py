@@ -67,7 +67,7 @@ class ImageGenerator:
         for i in range(out_shape[0]):
             for j in range(out_shape[1]):
                 label = label_map[i,j]
-                img[i][j] = sample_distribution('normal', gmm_parameters[label])
+                img[i,j] = sample_distribution('normal', gmm_parameters[label])
         return img
 
 
