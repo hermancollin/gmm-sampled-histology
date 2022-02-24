@@ -120,6 +120,8 @@ for sample in samples_dict.keys():
                 samples_dict[sample]['myelin_mask'] = str(m)
 print(f'Found {len(samples_dict.keys())} samples:')
 print(json.dumps(samples_dict, indent=4))
+with open('dataset_atlas.json', 'w') as json_file:
+    json.dump(samples_dict, json_file)
 
 # extracting mean and std from all samples
 priors = pd.DataFrame(columns=COLUMNS)

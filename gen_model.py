@@ -51,18 +51,46 @@ class ImageGenerator:
             self.priors_bounds.append(class_priors)
         self.print_priors()
 
+        # generator for the gaussian parameters
+        self.model_params_generator = self._build_model_params()
+
+    def generate_image(self, label_map):
+        """
+        This method will generate an image conditioned on the given label map
+        :param label_map: matrix of same dimensions as image
+        uses 0,1 and 2 for background, myelin and axon, respectively
+        :return: synthetic image
+        """
+        gmm_parameters = next(self.model_params_generator)
+        out_shape = label_map.shape
+        img = np.zeros(out_shape)
+        for i in range(out_shape[0]):
+            for j in range(out_shape[1]):
+                label = label_map[i,j]
+                img[i][j] = sample_distribution('normal', gmm_parameters[label])
+        return img
+
+
+    def _build_model_params(self):
+        """This method returns a generator for the gmm parameters."""
+        while True:
+            model_params = []
+            for l, label in enumerate(['bg','my','ax']):
+                class_params = []
+                for p, param in enumerate(['mean','std']):
+                    sample = sample_distribution('uniform', self.priors_bounds[l][p])
+                    class_params.append(sample)
+                model_params.append(class_params)
+            yield model_params
+
     def print_priors(self):
         if self.priors_bounds is None:
             print('Empty priors')
         else:
-            p = self.priors_bounds
-            print(f'\tbackground mean ~ U({p[0][0][0]:.2f}, {p[0][0][1]:.2f})')
-            print(f'\tbackground std  ~ U({p[0][1][0]:.2f}, {p[0][1][1]:.2f})')
-            print(f'\tmyelin mean ~ U({p[1][0][0]:.2f}, {p[1][0][1]:.2f})')
-            print(f'\tmyelin std  ~ U({p[1][1][0]:.2f}, {p[1][1][1]:.2f})')
-            print(f'\taxon mean ~ U({p[2][0][0]:.2f}, {p[2][0][1]:.2f})')
-            print(f'\taxon std  ~ U({p[2][1][0]:.2f}, {p[2][1][1]:.2f})')
-
-
-
-gmm = ImageGenerator()
+            pb = self.priors_bounds
+            print(f'\tbackground mean ~ U({pb[0][0][0]:.2f}, {pb[0][0][1]:.2f})')
+            print(f'\tbackground std  ~ U({pb[0][1][0]:.2f}, {pb[0][1][1]:.2f})')
+            print(f'\tmyelin mean ~ U({pb[1][0][0]:.2f}, {pb[1][0][1]:.2f})')
+            print(f'\tmyelin std  ~ U({pb[1][1][0]:.2f}, {pb[1][1][1]:.2f})')
+            print(f'\taxon mean ~ U({pb[2][0][0]:.2f}, {pb[2][0][1]:.2f})')
+            print(f'\taxon std  ~ U({pb[2][1][0]:.2f}, {pb[2][1][1]:.2f})')
